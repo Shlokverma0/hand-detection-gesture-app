@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Hand Detection & Gesture Recognition</title>
+<style>
+  :root {
+    --bg: #0b0b12;
+    --panel: #14141e;
+    --card: #1a1a2e;
+    --border: #2a2a44;
+    --text: #f0f0f5;
+    --muted: #a8a8c8;
+    --accent: #6c5ce7;
+    --green: #00d2a0;
+    --red: #ff6b6b;
+  }
+  * { box-sizing: border-box; margin:0; padding:0; }
+  body {
+    font-family: 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+  }
+  #app { width: 100%; max-width: 1200px; }
+  header {
+    display:flex; align-items:center; justify-content:space-between;
+    background: var(--panel); border:1px solid var(--border);
+    border-radius: 12px; padding: 14px 20px; margin-bottom: 16px;
+    flex-wrap: wrap; gap: 10px;
+  }
+  header h1 { font-size: 1.2rem; }
+  header span { color: var(--muted); font-size: 0.8rem; font-weight: 400; }
+  button {
+    background: var(--accent); color: #fff; border:none;
+    padding: 10px 20px; border-radius: 8px; font-weight:600;
+    cursor:pointer; font-size: 0.9rem;
+  }
+  button:disabled { opacity: 0.5; cursor:not-allowed; }
+  button.stop { background: var(--red); }
+  .main { display:grid; grid-template-columns: 1fr 320px; gap:16px; }
+  @media (max-width: 900px) { .main { grid-template-columns: 1fr; } }
+  .video-box {
+    position:relative; background:#000; border:1px solid var(--border);
+    border-radius:12px; overflow:hidden; aspect-ratio: 4/3;
+  }
+  video, canvas { position:absolute; top:0; left:0; width:100%; height:100%; }
+  video { object-fit: cover; transform: scaleX(-1); }
+  canvas { transform: scaleX(-1); }
+  .placeholder {
+    position:absolute; inset:0; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap:10px; text-align:center;
+    padding: 20px; color: var(--muted); z-index:2; background: #0b0b12;
+  }
+  .badge {
+    position:absolute; top:10px; right:10px; background: rgba(0,0,0,0.7);
+    padding: 5px 12px; border-radius:20px; font-size:0.8rem; color: var(--green);
+    z-index: 3;
+  }
+  .sidebar { display:flex; flex-direction:column; gap:14px; }
+  .card {
+    background: var(--panel); border:1px solid var(--border);
+    border-radius:12px; padding:16px;
+  }
+  .card h3 {
+    font-size:0.75rem; text-transform:uppercase; color:var(--muted);
+    margin-bottom:10px; letter-spacing:0.5px;
+  }
+  .hand-row {
+    display:flex; justify-content:space-between; align-items:center;
+    background: var(--card); padding:10px 12px; border-radius:8px;
+    margin-bottom:8px; border-left: 3px solid var(--accent);
+  }
+  .error-box {
+    background: rgba(255,107,107,0.1); border:1px solid rgba(255,107,107,0.3);
+    color: var(--red); padding:12px 14px; border-radius:8px; font-size:0.85rem;
+    margin-top:10px; word-break: break-word; text-align:left;
+  }
+  .status-log {
+    background: var(--card); border-radius: 8px; padding: 10px;
+    font-size: 0.75rem; color: var(--muted); max-height: 160px;
+    overflow-y: auto; font-family: monospace; text-align:left;
+  }
+  .status-log div { padding: 2px 0; border-bottom: 1px solid var(--border); }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div><h1>✋ GestureVision <span>· B.Tech CSE Project</span></h1></div>
+    <button id="toggleBtn">Start Camera</button>
+  </header>
+
+  <div class="main">
+    <div class="video-box" id="videoBox">
+      <video id="video" playsinline muted></video>
+      <canvas id="canvas"></canvas>
+      <div class="placeholder" id="placeholder">
+        <div style="font-size:2.5rem;">✋</div>
+        <p>Click <strong>Start Camera</strong> to begin hand detection</p>
+        <span style="font-size:0.75rem;">MediaPipe Tasks Vision · Real-time · Up to 2 hands</span>
+      </div>
+      <div class="badge" id="fpsBadge" style="display:none;">0 FPS</div>
+    </div>
+
+    <div class="sidebar">
+      <div class="card">
+        <h3>Hand Detection</h3>
+        <div id="handInfo">
+          <div class="hand-row"><span>No hands detected</span></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Status Log</h3>
+        <div class="status-log" id="statusLog"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import {
+    HandLandmarker,
+    FilesetResolver
+  } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs";
+
+  const video = document.getElementById('video');
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  const toggleBtn = document.getElementById('toggleBtn');
+  const placeholder = document.getElementById('placeholder');
+  const fpsBadge = document.getElementById('fpsBadge');
+  const handInfo = document.getElementById('handInfo');
+  const statusLog = document.getElementById('statusLog');
+
+  let handLandmarker = null;
+  let running = false;
+  let stream = null;
+  let lastTime = performance.now();
+  let frames = 0;
+
+  function log(msg, isError=false) {
+    const div = document.createElement('div');
+    div.textContent = msg;
+    if (isError) div.style.color = 'var(--red)';
+    statusLog.prepend(div);
+  }
+
+  function showError(msg) {
+    log(msg, true);
+    const box = document.createElement('div');
+    box.className = 'error-box';
+    box.textContent = msg;
+    placeholder.appendChild(box);
+    placeholder.style.display = 'flex';
+  }
+
+  async function setupModel() {
+    log('Loading MediaPipe vision tasks...');
+    const vision = await FilesetResolver.forVisionTasks(
+      "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
+    );
+    log('Vision tasks loaded. Loading hand landmarker model...');
+    handLandmarker = await HandLandmarker.createFromOptions(vision, {
+      baseOptions: {
+        modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+        delegate: "GPU"
+      },
+      runningMode: "VIDEO",
+      numHands: 2
+    });
+    log('Hand landmarker ready.');
+  }
+
+  function countFingers(landmarks, handedness) {
+    const isRight = handedness === 'Right';
+    let count = 0;
+    const thumbTip = landmarks[4], thumbIP = landmarks[3];
+    const thumbUp = isRight ? thumbTip.x < thumbIP.x : thumbTip.x > thumbIP.x;
+    if (thumbUp) count++;
+    const tips = [8, 12, 16, 20], pips = [6, 10, 14, 18];
+    for (let i = 0; i < 4; i++) {
+      if (landmarks[tips[i]].y < landmarks[pips[i]].y) count++;
+    }
+    return count;
+  }
+
+  function gestureFor(count) {
+    if (count === 0) return 'Fist';
+    if (count === 5) return 'Open Palm';
+    if (count === 1) return 'Thumbs Up';
+    if (count === 2) return 'Peace / Victory';
+    return count + ' Fingers';
+  }
+
+  const HAND_CONNECTIONS = [
+    [0,1],[1,2],[2,3],[3,4],
+    [0,5],[5,6],[6,7],[7,8],
+    [5,9],[9,10],[10,11],[11,12],
+    [9,13],[13,14],[14,15],[15,16],
+    [13,17],[17,18],[18,19],[19,20],
+    [0,17]
+  ];
+
+  function drawResults(result) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const rows = [];
+
+    if (result.landmarks && result.landmarks.length > 0) {
+      result.landmarks.forEach((landmarks, i) => {
+        const handedness = result.handednesses[i][0].categoryName;
+        const color = handedness === 'Right' ? '#fdcb6e' : '#74b9ff';
+
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        HAND_CONNECTIONS.forEach(([a,b]) => {
+          ctx.beginPath();
+          ctx.moveTo(landmarks[a].x * canvas.width, landmarks[a].y * canvas.height);
+          ctx.lineTo(landmarks[b].x * canvas.width, landmarks[b].y * canvas.height);
+          ctx.stroke();
+        });
+        landmarks.forEach(lm => {
+          ctx.beginPath();
+          ctx.arc(lm.x * canvas.width, lm.y * canvas.height, 4, 0, 2*Math.PI);
+          ctx.fillStyle = color;
+          ctx.fill();
+        });
+
+        const count = countFingers(landmarks, handedness);
+        rows.push(`${handedness}: ${gestureFor(count)} (${count}/5)`);
+      });
+    }
+
+    handInfo.innerHTML = rows.length
+      ? rows.map(r => `<div class="hand-row"><span>${r}</span></div>`).join('')
+      : '<div class="hand-row"><span>No hands detected</span></div>';
+  }
+
+  async function detectLoop() {
+    if (!running) return;
+    if (video.readyState >= 2) {
+      const result = handLandmarker.detectForVideo(video, performance.now());
+      drawResults(result);
+
+      frames++;
+      const now = performance.now();
+      if (now - lastTime > 500) {
+        const fps = Math.round((frames * 1000) / (now - lastTime));
+        fpsBadge.textContent = fps + ' FPS';
+        frames = 0;
+        lastTime = now;
+      }
+    }
+    requestAnimationFrame(detectLoop);
+  }
+
+  async function startCamera() {
+    toggleBtn.disabled = true;
+    toggleBtn.textContent = 'Starting...';
+
+    // Secure context check
+    const isSecure = window.isSecureContext;
+    if (!isSecure) {
+      showError('This page must be served over HTTPS or localhost for camera access to work. Currently running on an insecure origin: ' + window.location.protocol + '//' + window.location.host);
+      toggleBtn.disabled = false;
+      toggleBtn.textContent = 'Start Camera';
+      return;
+    }
+
+    try {
+      log('Requesting camera access...');
+      stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+      video.srcObject = stream;
+      await video.play();
+      log('Camera stream active.');
+
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
+
+      if (!handLandmarker) {
+        await setupModel();
+      }
+
+      placeholder.style.display = 'none';
+      fpsBadge.style.display = 'block';
+      running = true;
+      toggleBtn.textContent = 'Stop Camera';
+      toggleBtn.classList.add('stop');
+      toggleBtn.disabled = false;
+      detectLoop();
+
+    } catch (err) {
+      console.error(err);
+      showError('Error: ' + (err.message || err.toString()));
+      toggleBtn.disabled = false;
+      toggleBtn.textContent = 'Start Camera';
+      if (stream) {
+        stream.getTracks().forEach(t => t.stop());
+      }
+    }
+  }
+
+  function stopCamera() {
+    running = false;
+    if (stream) {
+      stream.getTracks().forEach(t => t.stop());
+      stream = null;
+    }
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    placeholder.style.display = 'flex';
+    fpsBadge.style.display = 'none';
+    toggleBtn.textContent = 'Start Camera';
+    toggleBtn.classList.remove('stop');
+    handInfo.innerHTML = '<div class="hand-row"><span>No hands detected</span></div>';
+    log('Camera stopped.');
+  }
+
+  toggleBtn.addEventListener('click', () => {
+    if (running) stopCamera();
+    else startCamera();
+  });
+
+  log('Page loaded. Ready.');
+</script>
+</body>
+</html>
