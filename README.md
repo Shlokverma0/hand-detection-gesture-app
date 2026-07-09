@@ -42,12 +42,9 @@ python -m http.server 8000
 ```
 Then open `http://localhost:8000/hand-detection-app.html`
 
-**Option 3 — Live deployed link**
-> Add your Netlify/GitHub Pages link here once deployed
-
 ## 🔮 Future Improvements
 
-- [ ] Sign-language alphabet recognition
+- [ ] Sign-language alphabet recohttps://app.netlify.com/dropgnition
 - [ ] Gesture-controlled UI actions (volume, slides, etc.)
 - [ ] Mobile camera support
 - [ ] Custom gesture training mode
