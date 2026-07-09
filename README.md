@@ -16,7 +16,9 @@ Built as part of my B.Tech CSE coursework to explore applied computer vision and
 
 ## 🎥 Demo
 
-> Add your screen recording here as a GIF: `![demo](demo.gif)`
+## 🎥 Demo
+   ![Hand Detection Screenshot 1](screenshot-1.png)
+![Hand Detection Screenshot 2](screenshot-2.png)
 
 ## 🛠️ Tech Stack
 
