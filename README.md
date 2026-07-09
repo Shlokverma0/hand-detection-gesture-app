@@ -15,10 +15,12 @@ Built as part of my B.Tech CSE coursework to explore applied computer vision and
 - On-screen status log for transparent debugging
 
 ## 🎥 Demo
-
-## 🎥 Demo
    ![Hand Detection Screenshot 1](screenshot-1.png)
 ![Hand Detection Screenshot 2](screenshot-2.png)
+
+## 🎥 Demo Video
+
+[Watch the demo](demo.mp4)
 
 ## 🛠️ Tech Stack
 
