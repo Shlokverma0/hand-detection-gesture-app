@@ -4,7 +4,7 @@ A browser-based computer vision project that detects hands in real time using yo
 
 ## 📌 Project Overview
 
-Built as part of my B.Tech CSE coursework to explore applied computer vision and real-time ML inference directly in the browser. Uses Google's **MediaPipe Hand Landmarker** (Tasks Vision API) for detection, with custom logic layered on top for finger counting and gesture classification.
+Built as part of my B.Tech CSE coursework to explore applied computer vision or real-time ML inference directly in the browser. Uses Google's **MediaPipe Hand Landmarker** (Tasks Vision API) for detection, with custom logic layered on top for finger counting and gesture classification.
 
 **Features:**
 - Detects up to 2 hands simultaneously, in real time
@@ -23,7 +23,6 @@ Built as part of my B.Tech CSE coursework to explore applied computer vision and
 [Watch the demo](demo.mp4)
 
 ## 🛠️ Tech Stack
-
 - HTML, CSS, JavaScript (vanilla, no frameworks)
 - MediaPipe Tasks Vision (`@mediapipe/tasks-vision`) — runs entirely client-side
 - Canvas API for landmark rendering
